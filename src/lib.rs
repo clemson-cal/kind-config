@@ -132,6 +132,22 @@ impl Form {
     }
 
     /**
+     * Return a hash map of the (key, value) items, stripping out the about
+     * messages. If the HDF5 feature is enabled, the result can be written
+     * directly to an HDF5 group via io::write_to_hdf5.
+     */
+    pub fn value_map(&self) -> HashMap::<String, Value> {
+        self.parameter_map.iter().map(|(key, parameter)| (key.clone(), parameter.value.clone())).collect()
+    }
+
+    /**
+     * Return the number of items.
+     */
+    pub fn len(&self) -> usize {
+        self.parameter_map.len()
+    }
+
+    /**
      * Merge in the contents of a string-value map. The result is an error if
      * any of the new keys have not already been declared in the form, or if
      * they were declared as a different type.
@@ -243,42 +259,37 @@ pub mod io {
     use hdf5;
     use super::*;
 
-    pub fn write_to_hdf5(form: &Form, group: &hdf5::Group, name: &str) -> Result<(), hdf5::Error> {
+    pub fn write_to_hdf5(value_map: &HashMap::<String, Value>, group: &hdf5::Group) -> Result<(), hdf5::Error> {
         use hdf5::types::VarLenAscii;
-        let form_group = group.create_group(name)?;
-        for (key, parameter) in form {
-            match &parameter.value {
-                Value::B(x) => form_group.new_dataset::<bool>().create(key, ())?.write_scalar(x),
-                Value::I(x) => form_group.new_dataset::<i64>().create(key, ())?.write_scalar(x),
-                Value::F(x) => form_group.new_dataset::<f64>().create(key, ())?.write_scalar(x),
-                Value::S(x) => form_group.new_dataset::<VarLenAscii>().create(key, ())?.write_scalar(&VarLenAscii::from_ascii(&x).unwrap()),
+
+        for (key, value) in value_map {
+            match &value {
+                Value::B(x) => group.new_dataset::<bool>().create(key, ())?.write_scalar(x),
+                Value::I(x) => group.new_dataset::<i64>().create(key, ())?.write_scalar(x),
+                Value::F(x) => group.new_dataset::<f64>().create(key, ())?.write_scalar(x),
+                Value::S(x) => group.new_dataset::<VarLenAscii>().create(key, ())?.write_scalar(&VarLenAscii::from_ascii(&x).unwrap()),
             }?;
         }
         Ok(())
     }
 
-    pub fn read_from_hdf5(group: &hdf5::Group, name: &str) -> Result<HashMap<String, Value>, hdf5::Error> {
+    pub fn read_from_hdf5(group: &hdf5::Group) -> Result<HashMap::<String, Value>, hdf5::Error> {
         use hdf5::types::VarLenAscii;
-        let form_group = group.group(name)?;
         let mut values = HashMap::<String, Value>::new();
 
-        for key in form_group.member_names()? {
-            if form_group.dataset(&key)?.dtype()?.is::<bool>() {
-                let value = form_group.dataset(&key)?.read_scalar::<bool>()?;
-                values.insert(key.to_string(), Value::from(value));
-            }
-            if form_group.dataset(&key)?.dtype()?.is::<i64>() {
-                let value = form_group.dataset(&key)?.read_scalar::<i64>()?;
-                values.insert(key.to_string(), Value::from(value));
-            }
-            if form_group.dataset(&key)?.dtype()?.is::<f64>() {
-                let value = form_group.dataset(&key)?.read_scalar::<f64>()?;
-                values.insert(key.to_string(), Value::from(value));
-            }
-            if form_group.dataset(&key)?.dtype()?.is::<VarLenAscii>() {
-                let value = form_group.dataset(&key)?.read_scalar::<VarLenAscii>()?;
-                values.insert(key.to_string(), Value::from(value.as_str()));
-            }
+        for key in group.member_names()? {
+            let dtype = group.dataset(&key)?.dtype()?;
+            let value =
+            if dtype.is::<bool>() {
+                group.dataset(&key)?.read_scalar::<bool>().map(|x| Value::from(x))
+            } else if dtype.is::<i64>() {
+                group.dataset(&key)?.read_scalar::<i64>().map(|x| Value::from(x))
+            } else if dtype.is::<f64>() {
+                group.dataset(&key)?.read_scalar::<f64>().map(|x| Value::from(x))
+            } else {
+                group.dataset(&key)?.read_scalar::<VarLenAscii>().map(|x| Value::from(x.as_str()))
+            }?;
+            values.insert(key.to_string(), value);
         }
         Ok(values)
     }
@@ -307,7 +318,6 @@ mod tests {
         let form = make_example_form()
             .merge_string_map(args)
             .unwrap();
-
         assert!(form.get("num_zones").as_int() == 5000);
     }
 
@@ -362,15 +372,17 @@ mod tests {
         fn can_write_to_hdf5() {
             let file = hdf5::File::create("test1.h5").unwrap();
             let form = make_example_form();
-            io::write_to_hdf5(&form, &file, "run_config").unwrap();
+            io::write_to_hdf5(&form.value_map(), &file).unwrap();
         }
 
         #[test]
         fn can_read_from_hdf5() {
-            io::write_to_hdf5(&make_example_form(), &hdf5::File::create("test2.h5").unwrap(), "run_config").unwrap();
+            io::write_to_hdf5(&make_example_form().value_map(), &hdf5::File::create("test2.h5").unwrap()).unwrap();
             let file = hdf5::File::open("test2.h5").unwrap();
-            let values = io::read_from_hdf5(&file, "run_config").unwrap();
-            assert_eq!(values.len(), 5);
+            let value_map = io::read_from_hdf5(&file).unwrap();
+            let form = make_example_form().merge_value_map(&value_map).unwrap();
+            assert_eq!(form.len(), 5);
+            assert_eq!(form.get("num_zones").as_int(), 5000);
         }
     }
 }
