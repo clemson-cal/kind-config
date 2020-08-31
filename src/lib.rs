@@ -243,7 +243,7 @@ pub mod io {
     use hdf5;
     use super::*;
 
-    pub fn into_hdf5(form: &Form, group: &hdf5::Group, name: &str) -> Result<(), hdf5::Error> {
+    pub fn write_to_hdf5(form: &Form, group: &hdf5::Group, name: &str) -> Result<(), hdf5::Error> {
         use hdf5::types::VarLenAscii;
         let form_group = group.create_group(name)?;
         for (key, parameter) in form {
@@ -255,6 +255,32 @@ pub mod io {
             }?;
         }
         Ok(())
+    }
+
+    pub fn read_from_hdf5(group: &hdf5::Group, name: &str) -> Result<HashMap<String, Value>, hdf5::Error> {
+        use hdf5::types::VarLenAscii;
+        let form_group = group.group(name)?;
+        let mut values = HashMap::<String, Value>::new();
+
+        for key in form_group.member_names()? {
+            if form_group.dataset(&key)?.dtype()?.is::<bool>() {
+                let value = form_group.dataset(&key)?.read_scalar::<bool>()?;
+                values.insert(key.to_string(), Value::from(value));
+            }
+            if form_group.dataset(&key)?.dtype()?.is::<i64>() {
+                let value = form_group.dataset(&key)?.read_scalar::<i64>()?;
+                values.insert(key.to_string(), Value::from(value));
+            }
+            if form_group.dataset(&key)?.dtype()?.is::<f64>() {
+                let value = form_group.dataset(&key)?.read_scalar::<f64>()?;
+                values.insert(key.to_string(), Value::from(value));
+            }
+            if form_group.dataset(&key)?.dtype()?.is::<VarLenAscii>() {
+                let value = form_group.dataset(&key)?.read_scalar::<VarLenAscii>()?;
+                values.insert(key.to_string(), Value::from(value.as_str()));
+            }
+        }
+        Ok(values)
     }
 }
 
@@ -272,6 +298,7 @@ mod tests {
             .item("tfinal"    , 0.2    , "Time at which to stop the simulation")
             .item("rk_order"  , 2      , "Runge-Kutta time integration order")
             .item("quiet"     , false  , "Suppress the iteration message")
+            .item("outdir"    , "data" , "Directory where output data is written")
     }
 
     #[test]
@@ -325,11 +352,25 @@ mod tests {
         assert!(make_example_form().merge_value_map(&args).is_err());
     }
 
+
     #[cfg(feature="hdf5")]
-    #[test]
-    fn can_write_to_hdf5() {
-        let file = hdf5::File::create("test.h5").unwrap();
-        let form = make_example_form();
-        io::into_hdf5(&form, &file, "run_config").unwrap();
+    #[cfg(test)]
+    mod io_tests {
+        use super::*;
+
+        #[test]
+        fn can_write_to_hdf5() {
+            let file = hdf5::File::create("test1.h5").unwrap();
+            let form = make_example_form();
+            io::write_to_hdf5(&form, &file, "run_config").unwrap();
+        }
+
+        #[test]
+        fn can_read_from_hdf5() {
+            io::write_to_hdf5(&make_example_form(), &hdf5::File::create("test2.h5").unwrap(), "run_config").unwrap();
+            let file = hdf5::File::open("test2.h5").unwrap();
+            let values = io::read_from_hdf5(&file, "run_config").unwrap();
+            assert_eq!(values.len(), 5);
+        }
     }
 }
