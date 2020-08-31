@@ -238,6 +238,30 @@ pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>
 
 
 // ============================================================================
+#[cfg(feature="hdf5")]
+pub mod io {
+    use hdf5;
+    use super::*;
+
+    pub fn into_hdf5(form: &Form, group: &hdf5::Group, name: &str) -> Result<(), hdf5::Error> {
+        use hdf5::types::VarLenAscii;
+        let form_group = group.create_group(name)?;
+        for (key, parameter) in form {
+            match &parameter.value {
+                Value::B(x) => form_group.new_dataset::<bool>().create(key, ())?.write_scalar(x),
+                Value::I(x) => form_group.new_dataset::<i64>().create(key, ())?.write_scalar(x),
+                Value::F(x) => form_group.new_dataset::<f64>().create(key, ())?.write_scalar(x),
+                Value::S(x) => form_group.new_dataset::<VarLenAscii>().create(key, ())?.write_scalar(&VarLenAscii::from_ascii(&x).unwrap()),
+            }?;
+        }
+        Ok(())
+    }
+}
+
+
+
+
+// ============================================================================
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +280,7 @@ mod tests {
         let form = make_example_form()
             .merge_string_map(args)
             .unwrap();
+
         assert!(form.get("num_zones").as_int() == 5000);
     }
 
@@ -298,5 +323,13 @@ mod tests {
         .collect();
 
         assert!(make_example_form().merge_value_map(&args).is_err());
+    }
+
+    #[cfg(feature="hdf5")]
+    #[test]
+    fn can_write_to_hdf5() {
+        let file = hdf5::File::create("test.h5").unwrap();
+        let form = make_example_form();
+        io::into_hdf5(&form, &file, "run_config").unwrap();
     }
 }
