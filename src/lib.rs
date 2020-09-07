@@ -148,6 +148,16 @@ impl Form {
     }
 
     /**
+     * Return a vector of the keys in this map, sorted alphabetically.
+     */
+    pub fn sorted_keys(&self) -> Vec<String>
+    {
+        let mut result: Vec<String> = self.parameter_map.keys().map(|x| x.to_string()).collect();
+        result.sort();
+        result
+    }
+
+    /**
      * Merge in the contents of a string-value map. The result is an error if
      * any of the new keys have not already been declared in the form, or if
      * they were declared as a different type.
@@ -210,6 +220,10 @@ impl Form {
      */
     pub fn get(&self, key: &str) -> &Value {
         &self.parameter_map.get(key.into()).unwrap().value
+    }
+
+    pub fn about(&self, key: &str) -> &str {
+        &self.parameter_map.get(key.into()).unwrap().about
     }
 }
 
