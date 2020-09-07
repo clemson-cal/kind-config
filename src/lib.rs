@@ -242,7 +242,7 @@ pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>
     for arg in args {
         let str_arg: String = arg.into();
         let (key, value) = left_and_right_hand_side(&str_arg)?;
-        if result.contains_key(&str_arg) {
+        if result.contains_key(key) {
             return Err(ConfigError::new(key, "duplicate parameter"));
         }
         result.insert(key.to_string(), value.to_string());
@@ -352,16 +352,27 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn to_string_map_fails_with_duplicate_parameter() {
+        to_string_map_from_key_val_pairs(vec!["a=1".to_string(), "a=2".to_string()]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn to_string_map_fails_with_badly_formed_parameter() {
+        to_string_map_from_key_val_pairs(vec!["a 2".to_string()]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
     fn merge_value_map_fails_with_kind_mismatch() {
         let args: HashMap<String, Value> = vec![
             ("num_zones".to_string(), Value::from(3.14)),
             ("quiet".to_string(), Value::from(true))]
         .into_iter()
         .collect();
-
-        assert!(make_example_form().merge_value_map(&args).is_err());
+        make_example_form().merge_value_map(&args).unwrap();
     }
-
 
     #[cfg(feature="hdf5")]
     #[cfg(test)]
