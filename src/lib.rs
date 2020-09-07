@@ -16,11 +16,6 @@ pub enum Value {
     S(String),
 }
 
-impl From<bool> for Value { fn from(a: bool) -> Self { Value::B(a) } }
-impl From<i64>  for Value { fn from(a: i64)  -> Self { Value::I(a) } }
-impl From<f64>  for Value { fn from(a: f64)  -> Self { Value::F(a) } }
-impl From<&str> for Value { fn from(a: &str) -> Self { Value::S(a.into()) } }
-
 impl Value {
 
     /**
@@ -35,10 +30,6 @@ impl Value {
            _ => false,
        }
     }
-    pub fn as_bool  (&self) -> bool   { match self { Value::B(x) => x.clone(), _ => panic!() } }
-    pub fn as_int   (&self) -> i64    { match self { Value::I(x) => x.clone(), _ => panic!() } }
-    pub fn as_float (&self) -> f64    { match self { Value::F(x) => x.clone(), _ => panic!() } }
-    pub fn as_string(&self) -> String { match self { Value::S(x) => x.clone(), _ => panic!() } }
 }
 
 impl fmt::Display for Value {
@@ -51,6 +42,16 @@ impl fmt::Display for Value {
         }
     }
 }
+
+impl From<bool> for Value { fn from(a: bool) -> Self { Value::B(a) } }
+impl From<i64>  for Value { fn from(a: i64)  -> Self { Value::I(a) } }
+impl From<f64>  for Value { fn from(a: f64)  -> Self { Value::F(a) } }
+impl From<&str> for Value { fn from(a: &str) -> Self { Value::S(a.into()) } }
+
+impl<'a> From<&'a Value> for bool   { fn from(a: &'a Value) -> bool   { match a { Value::B(x) => x.clone(), _ => panic!() } } }
+impl<'a> From<&'a Value> for i64    { fn from(a: &'a Value) -> i64    { match a { Value::I(x) => x.clone(), _ => panic!() } } }
+impl<'a> From<&'a Value> for f64    { fn from(a: &'a Value) -> f64    { match a { Value::F(x) => x.clone(), _ => panic!() } } }
+impl<'a> From<&'a Value> for String { fn from(a: &'a Value) -> String { match a { Value::S(x) => x.clone(), _ => panic!() } } }
 
 
 
@@ -332,7 +333,7 @@ mod tests {
         let form = make_example_form()
             .merge_string_map(args)
             .unwrap();
-        assert!(form.get("num_zones").as_int() == 5000);
+        assert!(i64::from(form.get("num_zones")) == 5000);
     }
 
     #[test]
@@ -341,10 +342,10 @@ mod tests {
         let form = make_example_form()
             .merge_string_map(args)
             .unwrap();
-        assert!(form.get("num_zones").as_int() == 5000);
-        assert!(form.get("tfinal").as_float() == 0.4);
-        assert!(form.get("rk_order").as_int() == 1);
-        assert!(form.get("quiet").as_bool() == true);
+        assert!(i64::from(form.get("num_zones")) == 5000);
+        assert!(f64::from(form.get("tfinal")) == 0.4);
+        assert!(i64::from(form.get("rk_order")) == 1);
+        assert!(bool::from(form.get("quiet")) == true);
     }
 
     #[test]
@@ -359,10 +360,10 @@ mod tests {
             .merge_value_map(&args)
             .unwrap();
 
-        assert!(form.get("num_zones").as_int() == 2000);
-        assert!(form.get("tfinal").as_float() == 0.2);
-        assert!(form.get("rk_order").as_int() == 2);
-        assert!(form.get("quiet").as_bool() == true);
+        assert!(i64::from(form.get("num_zones")) == 2000);
+        assert!(f64::from(form.get("tfinal")) == 0.2);
+        assert!(i64::from(form.get("rk_order")) == 2);
+        assert!(bool::from(form.get("quiet")) == true);
     }
 
     #[test]

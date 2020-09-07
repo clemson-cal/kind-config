@@ -1,6 +1,6 @@
 [package]
 name = "kind-config"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jonathan Zrake <jonathan.zrake@gmail.com>"]
 edition = "2018"
 description = "Config maps with default values, kind, and about message for each key"
