@@ -1,10 +1,11 @@
 [package]
 name = "kind-config"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Jonathan Zrake <jonathan.zrake@gmail.com>"]
 edition = "2018"
-description = "Config maps with default values, kind, and about message for each key"
+description = "Collect kind-checked model parameters from the command line"
 license = "MIT"
+repository = "https://github.com/clemson-cal/kind-config"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

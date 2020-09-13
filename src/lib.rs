@@ -208,6 +208,25 @@ impl Form {
     }
 
     /**
+     * Merge in a sequence of "key=value" pairs. The result is an error if any of
+     * the new keys have not already been declared in the form, or if any of the
+     * value strings do not parse to the declared type.
+     *
+     * # Arguments
+     *
+     * * `args` - Iterator of string to update the map with
+     *
+     * # Example
+     * ```
+     * # let base = kind_config::Form::new();
+     * let form = base.merge_string_args(std::env::args().skip(1)).unwrap();
+     * ```
+     */
+    pub fn merge_string_args<T: IntoIterator<Item=U>, U: Into<String>>(&self, args: T) -> Result<Self, ConfigError> {
+        to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(res))?
+    }
+
+    /**
      * Get an item from the form. Panics if the item was not declared.
      * 
      * # Arguments
@@ -215,8 +234,9 @@ impl Form {
      * * `key` - The key to get
      * 
      * # Example
-     * ```compile_fail
-     * let x = form.get("counter").to_int(); // fails unless counter is declared and is i64
+     * ```
+     * # let form = kind_config::Form::new().item("counter", 0, "");
+     * let x: i64 = form.get("counter").into(); // fails unless "counter" is declared has kind i64
      * ```
      */
     pub fn get(&self, key: &str) -> &Value {
@@ -274,7 +294,7 @@ pub mod io {
     use hdf5;
     use super::*;
 
-    pub fn write_to_hdf5(value_map: &HashMap::<String, Value>, group: &hdf5::Group) -> Result<(), hdf5::Error> {
+    pub fn write_to_hdf5(group: &hdf5::Group, value_map: &HashMap::<String, Value>) -> Result<(), hdf5::Error> {
         use hdf5::types::VarLenAscii;
 
         for (key, value) in value_map {
@@ -316,7 +336,10 @@ pub mod io {
 // ============================================================================
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+    use crate::Value;
+    use crate::Form;
+    use crate::to_string_map_from_key_val_pairs;
 
     fn make_example_form() -> Form {
         Form::new()
@@ -329,9 +352,8 @@ mod tests {
 
     #[test]
     fn can_merge_in_command_line_args() {
-        let args = to_string_map_from_key_val_pairs(std::env::args().skip(1)).unwrap();
         let form = make_example_form()
-            .merge_string_map(args)
+            .merge_string_args(std::env::args().skip(1))
             .unwrap();
         assert!(i64::from(form.get("num_zones")) == 5000);
     }
