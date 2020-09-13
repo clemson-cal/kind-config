@@ -191,10 +191,10 @@ impl Form {
      *
      * * `dict` - A map of string to update the map with
      */
-    pub fn merge_string_map(&self, dict: HashMap<String, String>) -> Result<Self, ConfigError> {
+    pub fn merge_string_map(&self, dict: &HashMap<String, String>) -> Result<Self, ConfigError> {
         use Value::*;
         let mut parameter_map = self.parameter_map.clone();
-        for (k, v) in &dict {
+        for (k, v) in dict {
             let parameter = self.parameter_map.get(k).ok_or(ConfigError::new(&k, "is not a valid key"))?;
             let new_value = match parameter.value {
                 B(_) => v.parse().map(|x| B(x)).map_err(|_| ConfigError::new(k, "is a badly formed bool")),
@@ -223,7 +223,7 @@ impl Form {
      * ```
      */
     pub fn merge_string_args<T: IntoIterator<Item=U>, U: Into<String>>(&self, args: T) -> Result<Self, ConfigError> {
-        to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(res))?
+        to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(&res))?
     }
 
     /**
@@ -362,7 +362,7 @@ mod tests {
     fn can_merge_vector_of_args() {
         let args = to_string_map_from_key_val_pairs(vec!["tfinal=0.4", "rk_order=1", "quiet=true"]).unwrap();
         let form = make_example_form()
-            .merge_string_map(args)
+            .merge_string_map(&args)
             .unwrap();
         assert!(i64::from(form.get("num_zones")) == 5000);
         assert!(f64::from(form.get("tfinal")) == 0.4);
