@@ -30,6 +30,16 @@ impl Value {
            _ => false,
        }
     }
+
+    pub fn same_as(&self, other: &Value) -> bool {
+       match (&self, &other) {
+           (Value::B(a), Value::B(b)) => a == b,
+           (Value::I(a), Value::I(b)) => a == b,
+           (Value::F(a), Value::F(b)) => a == b,
+           (Value::S(a), Value::S(b)) => a == b,
+           _ => false,
+       }
+    }
 }
 
 impl fmt::Display for Value {
@@ -89,6 +99,7 @@ impl std::error::Error for ConfigError {}
 pub struct Parameter {
     pub value: Value,
     pub about: String,
+    pub frozen: bool,
 }
 
 
@@ -126,10 +137,96 @@ impl Form {
      * * `default` - The default value
      * * `about`   - A description of the item for use in user reporting
      */
-    pub fn item<T: Into<Value>>(&self, key: &str, default: T, about: &str) -> Self {
-        let mut parameter_map = self.parameter_map.clone();
-        parameter_map.insert(key.into(), Parameter{value: default.into(), about: about.into()});
-        Form{parameter_map: parameter_map}
+    pub fn item<T: Into<Value>>(mut self, key: &str, default: T, about: &str) -> Self {
+        self.parameter_map.insert(key.into(), Parameter{value: default.into(), about: about.into(), frozen: false});
+        return self
+    }
+
+    /**
+     * Merge in the contents of a string-value map, and freeze any of those items
+     * which are named in the given vector of keys to be frozen.
+     *
+     * # Arguments
+     *
+     * * `items` - A map of values to update the map with
+     * * `to_freeze` - A vector of keys to freeze, if the key is in `items`
+     */
+    pub fn merge_value_map_freezing(self, items: &HashMap<String, Value>, to_freeze: &Vec<&str>) -> Result<Self, ConfigError> {
+        let mut result = self.merge_value_map(items)?;
+        for key in to_freeze {
+            if items.contains_key(*key) {
+                result.parameter_map.get_mut(*key).unwrap().frozen = true;
+            }
+        }
+        Ok(result)
+    }
+
+    /**
+     * Merge in the contents of a string-value map. The result is an error if
+     * any of the new keys have not already been declared in the form, or if
+     * they were declared as a different type.
+     *
+     * # Arguments
+     *
+     * * `items` - A map of values to update the map with
+     */
+    pub fn merge_value_map(mut self, items: &HashMap<String, Value>) -> Result<Self, ConfigError> {
+        for (key, new_value) in items {
+            if let Some(item) = self.parameter_map.get_mut(key) {
+                if ! item.value.same_kind_as(new_value) {
+                    return Err(ConfigError::new(key, "has the wrong type"));
+                } else if item.frozen && ! item.value.same_as(new_value) {
+                    return Err(ConfigError::new(key, "cannot be modified"));
+                } else {
+                    item.value = new_value.clone();
+                }
+            } else {
+                return Err(ConfigError::new(key, "is not a valid key"));
+            }
+        }
+        Ok(self)
+    }
+
+    /**
+     * Merge in the contents of a string-string map. The result is an error if
+     * any of the new keys have not already been declared in the form, or if
+     * any of the value strings do not parse to the declared type.
+     *
+     * # Arguments
+     *
+     * * `dict` - A map of string to update the map with
+     */
+    pub fn merge_string_map(self, dict: &HashMap<String, String>) -> Result<Self, ConfigError> {
+        let items = self.string_map_to_value_map(dict)?;
+        self.merge_value_map(&items)
+    }
+
+    /**
+     * Merge in a sequence of "key=value" pairs. The result is an error if any of
+     * the new keys have not already been declared in the form, or if any of the
+     * value strings do not parse to the declared type.
+     *
+     * # Arguments
+     *
+     * * `args` - Iterator of string to update the map with
+     *
+     * # Example
+     * ```
+     * # let base = kind_config::Form::new();
+     * let form = base.merge_string_args(std::env::args().skip(1)).unwrap();
+     * ```
+     */
+    pub fn merge_string_args<T: IntoIterator<Item=U>, U: Into<String>>(self, args: T) -> Result<Self, ConfigError> {
+        to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(&res))?
+    }
+
+    /**
+     * Freeze a parameter with the given name, if it exists, or otherwise panic.
+     */
+    pub fn freeze(mut self, key: &str) -> Self
+    {
+        self.parameter_map.get_mut(key).unwrap().frozen = true;
+        return self;
     }
 
     /**
@@ -159,74 +256,6 @@ impl Form {
     }
 
     /**
-     * Merge in the contents of a string-value map. The result is an error if
-     * any of the new keys have not already been declared in the form, or if
-     * they were declared as a different type.
-     *
-     * # Arguments
-     *
-     * * `items` - A map of values to update the map with
-     */
-    pub fn merge_value_map(&self, items: &HashMap<String, Value>) -> Result<Self, ConfigError> {
-        let mut parameter_map = self.parameter_map.clone();
-        for (key, new_value) in items {
-            if ! parameter_map
-                .get(key)
-                .map(|p| p.value.clone())
-                .ok_or(ConfigError::new(key, "is not a valid key"))?
-                .same_kind_as(&new_value) {
-                    return Err(ConfigError::new(key, "has the wrong type"))
-                }
-            parameter_map.entry(key.into()).and_modify(|p| p.value = new_value.clone());
-        }
-        Ok(Form{parameter_map: parameter_map})
-    }
-
-    /**
-     * Merge in the contents of a string-string map. The result is an error if
-     * any of the new keys have not already been declared in the form, or if
-     * any of the value strings do not parse to the declared type.
-     *
-     * # Arguments
-     *
-     * * `dict` - A map of string to update the map with
-     */
-    pub fn merge_string_map(&self, dict: &HashMap<String, String>) -> Result<Self, ConfigError> {
-        use Value::*;
-        let mut parameter_map = self.parameter_map.clone();
-        for (k, v) in dict {
-            let parameter = self.parameter_map.get(k).ok_or(ConfigError::new(&k, "is not a valid key"))?;
-            let new_value = match parameter.value {
-                B(_) => v.parse().map(|x| B(x)).map_err(|_| ConfigError::new(k, "is a badly formed bool")),
-                I(_) => v.parse().map(|x| I(x)).map_err(|_| ConfigError::new(k, "is a badly formed int")),
-                F(_) => v.parse().map(|x| F(x)).map_err(|_| ConfigError::new(k, "is a badly formed float")),
-                S(_) => v.parse().map(|x| S(x)).map_err(|_| ConfigError::new(k, "is a badly formed string")),
-            }?;
-            parameter_map.entry(k.into()).and_modify(|p| p.value = new_value);
-        }
-        Ok(Form{parameter_map: parameter_map})
-    }
-
-    /**
-     * Merge in a sequence of "key=value" pairs. The result is an error if any of
-     * the new keys have not already been declared in the form, or if any of the
-     * value strings do not parse to the declared type.
-     *
-     * # Arguments
-     *
-     * * `args` - Iterator of string to update the map with
-     *
-     * # Example
-     * ```
-     * # let base = kind_config::Form::new();
-     * let form = base.merge_string_args(std::env::args().skip(1)).unwrap();
-     * ```
-     */
-    pub fn merge_string_args<T: IntoIterator<Item=U>, U: Into<String>>(&self, args: T) -> Result<Self, ConfigError> {
-        to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(&res))?
-    }
-
-    /**
      * Get an item from the form. Panics if the item was not declared.
      * 
      * # Arguments
@@ -245,6 +274,28 @@ impl Form {
 
     pub fn about(&self, key: &str) -> &str {
         &self.parameter_map.get(key.into()).unwrap().about
+    }
+
+    pub fn is_frozen(&self, key: &str) -> bool {
+        self.parameter_map.get(key.into()).unwrap().frozen
+    }
+
+    fn string_map_to_value_map(&self, dict: &HashMap<String, String>) -> Result<HashMap<String, Value>, ConfigError> {
+        use Value::*;
+
+        let mut result = HashMap::new();
+
+        for (k, v) in dict {
+            let parameter = self.parameter_map.get(k).ok_or(ConfigError::new(&k, "is not a valid key"))?;
+            let value = match parameter.value {
+                B(_) => v.parse().map(|x| B(x)).map_err(|_| ConfigError::new(k, "is a badly formed bool")),
+                I(_) => v.parse().map(|x| I(x)).map_err(|_| ConfigError::new(k, "is a badly formed int")),
+                F(_) => v.parse().map(|x| F(x)).map_err(|_| ConfigError::new(k, "is a badly formed float")),
+                S(_) => v.parse().map(|x| S(x)).map_err(|_| ConfigError::new(k, "is a badly formed string")),
+            }?;
+            result.insert(k.to_string(), value);
+        }
+        Ok(result)
     }
 }
 
@@ -351,6 +402,13 @@ mod tests {
     }
 
     #[test]
+    fn can_freeze_parameter() {
+        let form = make_example_form().freeze("num_zones");
+        assert!(  form.is_frozen("num_zones"));
+        assert!(! form.is_frozen("outdir"));
+    }
+
+    #[test]
     fn can_merge_in_command_line_args() {
         let form = make_example_form()
             .merge_string_args(std::env::args().skip(1))
@@ -386,6 +444,22 @@ mod tests {
         assert!(f64::from(form.get("tfinal")) == 0.2);
         assert!(i64::from(form.get("rk_order")) == 2);
         assert!(bool::from(form.get("quiet")) == true);
+    }
+
+    #[test]
+    fn can_merge_freeze_value_map() {
+        let args: HashMap<String, Value> = vec![
+            ("num_zones".to_string(), Value::from(2000)),
+            ("quiet".to_string(), Value::from(true))]
+        .into_iter()
+        .collect();
+
+        let form = make_example_form()
+            .merge_value_map_freezing(&args, &vec!["num_zones", "rk_order"])
+            .unwrap();
+
+        assert!(  form.is_frozen("num_zones"));
+        assert!(! form.is_frozen("rk_order"));
     }
 
     #[test]
