@@ -220,6 +220,10 @@ impl Form {
         to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(&res))?
     }
 
+    pub fn merge_string_args_allowing_duplicates<T: IntoIterator<Item=U>, U: Into<String>>(self, args: T) -> Result<Self, ConfigError> {
+        to_string_map_from_key_val_pairs_allowing_duplicates(args).map(|res| self.merge_string_map(&res))?
+    }
+
     /**
      * Freeze a parameter with the given name, if it exists, or otherwise panic.
      */
@@ -315,7 +319,7 @@ impl<'a> IntoIterator for &'a Form {
 
 
 // ============================================================================
-pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>>(args: T) -> Result<HashMap<String, String>, ConfigError> {
+fn to_string_map_from_key_val_pairs_general<T: IntoIterator<Item=U>, U: Into<String>>(args: T, allow_duplicates: bool) -> Result<HashMap<String, String>, ConfigError> {
     fn left_and_right_hand_side(a: &str) -> Result<(&str, &str), ConfigError> {
         let lr: Vec<&str> = a.split('=').collect();
         if lr.len() != 2 {
@@ -328,12 +332,20 @@ pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>
     for arg in args {
         let str_arg: String = arg.into();
         let (key, value) = left_and_right_hand_side(&str_arg)?;
-        if result.contains_key(key) {
+        if !allow_duplicates && result.contains_key(key) {
             return Err(ConfigError::new(key, "duplicate parameter"));
         }
         result.insert(key.to_string(), value.to_string());
     }
     Ok(result)
+}
+
+pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>>(args: T) -> Result<HashMap<String, String>, ConfigError> {
+    to_string_map_from_key_val_pairs_general(args, false)
+}
+
+pub fn to_string_map_from_key_val_pairs_allowing_duplicates<T: IntoIterator<Item=U>, U: Into<String>>(args: T) -> Result<HashMap<String, String>, ConfigError> {
+    to_string_map_from_key_val_pairs_general(args, true)
 }
 
 
