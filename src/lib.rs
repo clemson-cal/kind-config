@@ -40,6 +40,13 @@ impl Value {
            _ => false,
        }
     }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Value::S(s) => &s,
+            _ => panic!(),
+        }
+    }
 }
 
 impl fmt::Display for Value {
@@ -68,8 +75,7 @@ impl<'a> From<&'a Value> for String { fn from(a: &'a Value) -> String { match a 
 
 // ============================================================================
 #[derive(Debug)]
-pub struct ConfigError
-{
+pub struct ConfigError {
     key: String,
     why: String,
 }
