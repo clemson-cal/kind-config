@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
 
-
-
-
 /**
- * Enum (variant) whose kind is either bool, int, float, or string. These are
- * the types of values allowed in a Form.
+ * Enum (variant) whose kind is either `bool`, `f64`, `f64`, or `String`.
+ * These are the types of values allowed in a `Form`.
  */
 #[derive(Clone)]
 pub enum Value {
@@ -17,28 +14,28 @@ pub enum Value {
 }
 
 impl Value {
-
     /**
-     * Determine whether this value and another are of the same kind.
+     * Determines whether this value and another are of the same kind.
      */
     pub fn same_kind_as(&self, other: &Value) -> bool {
-       match (&self, &other) {
-           (Value::B(_), Value::B(_)) => true,
-           (Value::I(_), Value::I(_)) => true,
-           (Value::F(_), Value::F(_)) => true,
-           (Value::S(_), Value::S(_)) => true,
-           _ => false,
-       }
+        matches!(
+            (&self, &other),
+            (Value::B(_), Value::B(_))
+                | (Value::I(_), Value::I(_))
+                | (Value::F(_), Value::F(_))
+                | (Value::S(_), Value::S(_))
+        )
     }
 
     pub fn same_as(&self, other: &Value) -> bool {
-       match (&self, &other) {
-           (Value::B(a), Value::B(b)) => a == b,
-           (Value::I(a), Value::I(b)) => a == b,
-           (Value::F(a), Value::F(b)) => a == b,
-           (Value::S(a), Value::S(b)) => a == b,
-           _ => false,
-       }
+        #[allow(clippy::float_cmp)]
+        match (&self, &other) {
+            (Value::B(a), Value::B(b)) => a == b,
+            (Value::I(a), Value::I(b)) => a == b,
+            (Value::F(a), Value::F(b)) => a == b,
+            (Value::S(a), Value::S(b)) => a == b,
+            _ => false,
+        }
     }
 
     pub fn as_str(&self) -> &str {
@@ -60,20 +57,75 @@ impl fmt::Display for Value {
     }
 }
 
-impl From<bool> for Value { fn from(a: bool) -> Self { Value::B(a) } }
-impl From<i64>  for Value { fn from(a: i64)  -> Self { Value::I(a) } }
-impl From<f64>  for Value { fn from(a: f64)  -> Self { Value::F(a) } }
-impl From<&str> for Value { fn from(a: &str) -> Self { Value::S(a.into()) } }
+impl From<bool> for Value {
+    fn from(a: bool) -> Self {
+        Value::B(a)
+    }
+}
 
-impl<'a> From<&'a Value> for bool   { fn from(a: &'a Value) -> bool   { match a { Value::B(x) => x.clone(), _ => panic!() } } }
-impl<'a> From<&'a Value> for i64    { fn from(a: &'a Value) -> i64    { match a { Value::I(x) => x.clone(), _ => panic!() } } }
-impl<'a> From<&'a Value> for f64    { fn from(a: &'a Value) -> f64    { match a { Value::F(x) => x.clone(), _ => panic!() } } }
-impl<'a> From<&'a Value> for String { fn from(a: &'a Value) -> String { match a { Value::S(x) => x.clone(), _ => panic!() } } }
+impl From<i64> for Value {
+    fn from(a: i64) -> Self {
+        Value::I(a)
+    }
+}
 
+impl From<f64> for Value {
+    fn from(a: f64) -> Self {
+        Value::F(a)
+    }
+}
 
+impl From<&str> for Value {
+    fn from(a: &str) -> Self {
+        Value::S(a.into())
+    }
+}
 
+impl<'a> From<&'a Value> for bool {
+    fn from(a: &'a Value) -> bool {
+        match a {
+            Value::B(x) => *x,
+            _ => panic!(),
+        }
+    }
+}
 
-// ============================================================================
+impl<'a> From<&'a Value> for i64 {
+    fn from(a: &'a Value) -> i64 {
+        match a {
+            Value::I(x) => *x,
+            _ => panic!(),
+        }
+    }
+}
+
+impl<'a> From<&'a Value> for f64 {
+    fn from(a: &'a Value) -> f64 {
+        match a {
+            Value::F(x) => *x,
+            _ => panic!(),
+        }
+    }
+}
+
+impl<'a> From<&'a Value> for String {
+    fn from(a: &'a Value) -> String {
+        match a {
+            Value::S(x) => x.clone(),
+            _ => panic!(),
+        }
+    }
+}
+
+impl<'a> From<&'a Value> for &'a str {
+    fn from(a: &'a Value) -> &'a str {
+        match a {
+            Value::S(x) => x,
+            _ => panic!(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ConfigError {
     key: String,
@@ -82,7 +134,10 @@ pub struct ConfigError {
 
 impl ConfigError {
     pub fn new(key: &str, why: &str) -> ConfigError {
-        ConfigError{key: key.into(), why: why.into()}
+        ConfigError {
+            key: key.into(),
+            why: why.into(),
+        }
     }
 }
 
@@ -93,9 +148,6 @@ impl fmt::Display for ConfigError {
 }
 
 impl std::error::Error for ConfigError {}
-
-
-
 
 /**
  * A value and an about string. This is the value type of the HashMap used in a
@@ -108,33 +160,34 @@ pub struct Parameter {
     pub frozen: bool,
 }
 
-
-
-
 /**
  * A configuration data structure that is kind-checked at runtime. Items are
  * declared using the `item` member function, after which their value can be
  * updated but their kind (bool, int, float, string) cannot change.
  */
 pub struct Form {
-    parameter_map: HashMap::<String, Parameter>
+    parameter_map: HashMap<String, Parameter>,
 }
 
-
-
-
 // ============================================================================
-impl Form {
+impl Default for Form {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+impl Form {
     /**
-     * Create a blank form
+     * Creates a blank form.
      */
     pub fn new() -> Form {
-        Form{parameter_map: HashMap::new()}
+        Form {
+            parameter_map: HashMap::new(),
+        }
     }
 
     /**
-     * Declare a new config item. Any item already declared with that name is
+     * Declares a new config item. Any item already declared with that name is
      * replaced.
      *
      * # Arguments
@@ -144,20 +197,31 @@ impl Form {
      * * `about`   - A description of the item for use in user reporting
      */
     pub fn item<T: Into<Value>>(mut self, key: &str, default: T, about: &str) -> Self {
-        self.parameter_map.insert(key.into(), Parameter{value: default.into(), about: about.into(), frozen: false});
-        return self
+        self.parameter_map.insert(
+            key.into(),
+            Parameter {
+                value: default.into(),
+                about: about.into(),
+                frozen: false,
+            },
+        );
+        self
     }
 
     /**
-     * Merge in the contents of a string-value map, and freeze any of those items
-     * which are named in the given vector of keys to be frozen.
+     * Merges in the contents of a string-value map, and freeze any of those
+     * items which are named in the given vector of keys to be frozen.
      *
      * # Arguments
      *
      * * `items` - A map of values to update the map with
      * * `to_freeze` - A vector of keys to freeze, if the key is in `items`
      */
-    pub fn merge_value_map_freezing(self, items: &HashMap<String, Value>, to_freeze: &Vec<&str>) -> Result<Self, ConfigError> {
+    pub fn merge_value_map_freezing(
+        self,
+        items: &HashMap<String, Value>,
+        to_freeze: &[&str],
+    ) -> Result<Self, ConfigError> {
         let mut result = self.merge_value_map(items)?;
         for key in to_freeze {
             if items.contains_key(*key) {
@@ -168,7 +232,7 @@ impl Form {
     }
 
     /**
-     * Merge in the contents of a string-value map. The result is an error if
+     * Merges in the contents of a string-value map. The result is an error if
      * any of the new keys have not already been declared in the form, or if
      * they were declared as a different type.
      *
@@ -179,9 +243,9 @@ impl Form {
     pub fn merge_value_map(mut self, items: &HashMap<String, Value>) -> Result<Self, ConfigError> {
         for (key, new_value) in items {
             if let Some(item) = self.parameter_map.get_mut(key) {
-                if ! item.value.same_kind_as(new_value) {
+                if !item.value.same_kind_as(new_value) {
                     return Err(ConfigError::new(key, "has the wrong type"));
-                } else if item.frozen && ! item.value.same_as(new_value) {
+                } else if item.frozen && !item.value.same_as(new_value) {
                     return Err(ConfigError::new(key, "cannot be modified"));
                 } else {
                     item.value = new_value.clone();
@@ -194,9 +258,9 @@ impl Form {
     }
 
     /**
-     * Merge in the contents of a string-string map. The result is an error if
-     * any of the new keys have not already been declared in the form, or if
-     * any of the value strings do not parse to the declared type.
+     * Merges in the contents of a string-string map. The result is an error
+     * if any of the new keys have not already been declared in the form, or
+     * if any of the value strings do not parse to the declared type.
      *
      * # Arguments
      *
@@ -208,9 +272,9 @@ impl Form {
     }
 
     /**
-     * Merge in a sequence of "key=value" pairs. The result is an error if any of
-     * the new keys have not already been declared in the form, or if any of the
-     * value strings do not parse to the declared type.
+     * Merges in a sequence of "key=value" pairs. The result is an error if
+     * any of the new keys have not already been declared in the form, or if
+     * any of the value strings do not parse to the declared type.
      *
      * # Arguments
      *
@@ -222,56 +286,72 @@ impl Form {
      * let form = base.merge_string_args(std::env::args().skip(1)).unwrap();
      * ```
      */
-    pub fn merge_string_args<T: IntoIterator<Item=U>, U: Into<String>>(self, args: T) -> Result<Self, ConfigError> {
+    pub fn merge_string_args<T: IntoIterator<Item = U>, U: Into<String>>(
+        self,
+        args: T,
+    ) -> Result<Self, ConfigError> {
         to_string_map_from_key_val_pairs(args).map(|res| self.merge_string_map(&res))?
     }
 
-    pub fn merge_string_args_allowing_duplicates<T: IntoIterator<Item=U>, U: Into<String>>(self, args: T) -> Result<Self, ConfigError> {
-        to_string_map_from_key_val_pairs_allowing_duplicates(args).map(|res| self.merge_string_map(&res))?
+    pub fn merge_string_args_allowing_duplicates<T: IntoIterator<Item = U>, U: Into<String>>(
+        self,
+        args: T,
+    ) -> Result<Self, ConfigError> {
+        to_string_map_from_key_val_pairs_allowing_duplicates(args)
+            .map(|res| self.merge_string_map(&res))?
     }
 
     /**
-     * Freeze a parameter with the given name, if it exists, or otherwise panic.
+     * Freezes a parameter with the given name, if it exists, or otherwise
+     * panic.
      */
-    pub fn freeze(mut self, key: &str) -> Self
-    {
+    pub fn freeze(mut self, key: &str) -> Self {
         self.parameter_map.get_mut(key).unwrap().frozen = true;
-        return self;
+        self
     }
 
     /**
-     * Return a hash map of the (key, value) items, stripping out the about
+     * Returns a hash map of the (key, value) items, stripping out the about
      * messages. If the HDF5 feature is enabled, the result can be written
      * directly to an HDF5 group via io::write_to_hdf5.
      */
-    pub fn value_map(&self) -> HashMap::<String, Value> {
-        self.parameter_map.iter().map(|(key, parameter)| (key.clone(), parameter.value.clone())).collect()
+    pub fn value_map(&self) -> HashMap<String, Value> {
+        self.parameter_map
+            .iter()
+            .map(|(key, parameter)| (key.clone(), parameter.value.clone()))
+            .collect()
     }
 
     /**
-     * Return the number of items.
+     * Returns the number of items.
      */
     pub fn len(&self) -> usize {
         self.parameter_map.len()
     }
 
     /**
-     * Return a vector of the keys in this map, sorted alphabetically.
+     * Returns whether the map is empty.
      */
-    pub fn sorted_keys(&self) -> Vec<String>
-    {
+    pub fn is_empty(&self) -> bool {
+        self.parameter_map.is_empty()
+    }
+
+    /**
+     * Returns a vector of the keys in this map, sorted alphabetically.
+     */
+    pub fn sorted_keys(&self) -> Vec<String> {
         let mut result: Vec<String> = self.parameter_map.keys().map(|x| x.to_string()).collect();
         result.sort();
         result
     }
 
     /**
-     * Get an item from the form. Panics if the item was not declared.
-     * 
+     * Gets an item from the form. Panics if the item was not declared.
+     *
      * # Arguments
-     * 
+     *
      * * `key` - The key to get
-     * 
+     *
      * # Example
      * ```
      * # let form = kind_config::Form::new().item("counter", 0, "");
@@ -279,29 +359,47 @@ impl Form {
      * ```
      */
     pub fn get(&self, key: &str) -> &Value {
-        &self.parameter_map.get(key.into()).unwrap().value
+        &self.parameter_map.get(key).unwrap().value
     }
 
     pub fn about(&self, key: &str) -> &str {
-        &self.parameter_map.get(key.into()).unwrap().about
+        &self.parameter_map.get(key).unwrap().about
     }
 
     pub fn is_frozen(&self, key: &str) -> bool {
-        self.parameter_map.get(key.into()).unwrap().frozen
+        self.parameter_map.get(key).unwrap().frozen
     }
 
-    fn string_map_to_value_map(&self, dict: &HashMap<String, String>) -> Result<HashMap<String, Value>, ConfigError> {
+    fn string_map_to_value_map(
+        &self,
+        dict: &HashMap<String, String>,
+    ) -> Result<HashMap<String, Value>, ConfigError> {
         use Value::*;
 
         let mut result = HashMap::new();
 
         for (k, v) in dict {
-            let parameter = self.parameter_map.get(k).ok_or(ConfigError::new(&k, "is not a valid key"))?;
+            let parameter = self
+                .parameter_map
+                .get(k)
+                .ok_or_else(|| ConfigError::new(&k, "is not a valid key"))?;
             let value = match parameter.value {
-                B(_) => v.parse().map(|x| B(x)).map_err(|_| ConfigError::new(k, "is a badly formed bool")),
-                I(_) => v.parse().map(|x| I(x)).map_err(|_| ConfigError::new(k, "is a badly formed int")),
-                F(_) => v.parse().map(|x| F(x)).map_err(|_| ConfigError::new(k, "is a badly formed float")),
-                S(_) => v.parse().map(|x| S(x)).map_err(|_| ConfigError::new(k, "is a badly formed string")),
+                B(_) => v
+                    .parse()
+                    .map(B)
+                    .map_err(|_| ConfigError::new(k, "is a badly formed bool")),
+                I(_) => v
+                    .parse()
+                    .map(I)
+                    .map_err(|_| ConfigError::new(k, "is a badly formed int")),
+                F(_) => v
+                    .parse()
+                    .map(F)
+                    .map_err(|_| ConfigError::new(k, "is a badly formed float")),
+                S(_) => v
+                    .parse()
+                    .map(S)
+                    .map_err(|_| ConfigError::new(k, "is a badly formed string")),
             }?;
             result.insert(k.to_string(), value);
         }
@@ -309,23 +407,18 @@ impl Form {
     }
 }
 
-
-
-
-// ============================================================================
 impl<'a> IntoIterator for &'a Form {
-    type Item     = <&'a HashMap<String, Parameter> as IntoIterator>::Item;
+    type Item = <&'a HashMap<String, Parameter> as IntoIterator>::Item;
     type IntoIter = <&'a HashMap<String, Parameter> as IntoIterator>::IntoIter;
     fn into_iter(self) -> Self::IntoIter {
         self.parameter_map.iter()
     }
 }
 
-
-
-
-// ============================================================================
-fn to_string_map_from_key_val_pairs_general<T: IntoIterator<Item=U>, U: Into<String>>(args: T, allow_duplicates: bool) -> Result<HashMap<String, String>, ConfigError> {
+fn to_string_map_from_key_val_pairs_general<T: IntoIterator<Item = U>, U: Into<String>>(
+    args: T,
+    allow_duplicates: bool,
+) -> Result<HashMap<String, String>, ConfigError> {
     fn left_and_right_hand_side(a: &str) -> Result<(&str, &str), ConfigError> {
         let lr: Vec<&str> = a.split('=').collect();
         if lr.len() != 2 {
@@ -346,24 +439,30 @@ fn to_string_map_from_key_val_pairs_general<T: IntoIterator<Item=U>, U: Into<Str
     Ok(result)
 }
 
-pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item=U>, U: Into<String>>(args: T) -> Result<HashMap<String, String>, ConfigError> {
+pub fn to_string_map_from_key_val_pairs<T: IntoIterator<Item = U>, U: Into<String>>(
+    args: T,
+) -> Result<HashMap<String, String>, ConfigError> {
     to_string_map_from_key_val_pairs_general(args, false)
 }
 
-pub fn to_string_map_from_key_val_pairs_allowing_duplicates<T: IntoIterator<Item=U>, U: Into<String>>(args: T) -> Result<HashMap<String, String>, ConfigError> {
+pub fn to_string_map_from_key_val_pairs_allowing_duplicates<
+    T: IntoIterator<Item = U>,
+    U: Into<String>,
+>(
+    args: T,
+) -> Result<HashMap<String, String>, ConfigError> {
     to_string_map_from_key_val_pairs_general(args, true)
 }
 
-
-
-
-// ============================================================================
-#[cfg(feature="hdf5")]
+#[cfg(feature = "hdf5")]
 pub mod io {
-    use hdf5;
     use super::*;
+    use hdf5;
 
-    pub fn write_to_hdf5(group: &hdf5::Group, value_map: &HashMap::<String, Value>) -> Result<(), hdf5::Error> {
+    pub fn write_to_hdf5(
+        group: &hdf5::Group,
+        value_map: &HashMap<String, Value>,
+    ) -> Result<(), hdf5::Error> {
         use hdf5::types::VarLenAscii;
 
         for (key, value) in value_map {
@@ -371,27 +470,41 @@ pub mod io {
                 Value::B(x) => group.new_dataset::<bool>().create(key, ())?.write_scalar(x),
                 Value::I(x) => group.new_dataset::<i64>().create(key, ())?.write_scalar(x),
                 Value::F(x) => group.new_dataset::<f64>().create(key, ())?.write_scalar(x),
-                Value::S(x) => group.new_dataset::<VarLenAscii>().create(key, ())?.write_scalar(&VarLenAscii::from_ascii(&x).unwrap()),
+                Value::S(x) => group
+                    .new_dataset::<VarLenAscii>()
+                    .create(key, ())?
+                    .write_scalar(&VarLenAscii::from_ascii(&x).unwrap()),
             }?;
         }
         Ok(())
     }
 
-    pub fn read_from_hdf5(group: &hdf5::Group) -> Result<HashMap::<String, Value>, hdf5::Error> {
+    pub fn read_from_hdf5(group: &hdf5::Group) -> Result<HashMap<String, Value>, hdf5::Error> {
         use hdf5::types::VarLenAscii;
         let mut values = HashMap::<String, Value>::new();
 
         for key in group.member_names()? {
             let dtype = group.dataset(&key)?.dtype()?;
-            let value =
-            if dtype.is::<bool>() {
-                group.dataset(&key)?.read_scalar::<bool>().map(|x| Value::from(x))
+            let value = if dtype.is::<bool>() {
+                group
+                    .dataset(&key)?
+                    .read_scalar::<bool>()
+                    .map(|x| Value::from(x))
             } else if dtype.is::<i64>() {
-                group.dataset(&key)?.read_scalar::<i64>().map(|x| Value::from(x))
+                group
+                    .dataset(&key)?
+                    .read_scalar::<i64>()
+                    .map(|x| Value::from(x))
             } else if dtype.is::<f64>() {
-                group.dataset(&key)?.read_scalar::<f64>().map(|x| Value::from(x))
+                group
+                    .dataset(&key)?
+                    .read_scalar::<f64>()
+                    .map(|x| Value::from(x))
             } else {
-                group.dataset(&key)?.read_scalar::<VarLenAscii>().map(|x| Value::from(x.as_str()))
+                group
+                    .dataset(&key)?
+                    .read_scalar::<VarLenAscii>()
+                    .map(|x| Value::from(x.as_str()))
             }?;
             values.insert(key.to_string(), value);
         }
@@ -399,31 +512,28 @@ pub mod io {
     }
 }
 
-
-
-
 // ============================================================================
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use crate::Value;
-    use crate::Form;
     use crate::to_string_map_from_key_val_pairs;
+    use crate::Form;
+    use crate::Value;
+    use std::collections::HashMap;
 
     fn make_example_form() -> Form {
         Form::new()
-            .item("num_zones" , 5000   , "Number of grid cells to use")
-            .item("tfinal"    , 0.2    , "Time at which to stop the simulation")
-            .item("rk_order"  , 2      , "Runge-Kutta time integration order")
-            .item("quiet"     , false  , "Suppress the iteration message")
-            .item("outdir"    , "data" , "Directory where output data is written")
+            .item("num_zones", 5000, "Number of grid cells to use")
+            .item("tfinal", 0.2, "Time at which to stop the simulation")
+            .item("rk_order", 2, "Runge-Kutta time integration order")
+            .item("quiet", false, "Suppress the iteration message")
+            .item("outdir", "data", "Directory where output data is written")
     }
 
     #[test]
     fn can_freeze_parameter() {
         let form = make_example_form().freeze("num_zones");
-        assert!(  form.is_frozen("num_zones"));
-        assert!(! form.is_frozen("outdir"));
+        assert!(form.is_frozen("num_zones"));
+        assert!(!form.is_frozen("outdir"));
     }
 
     #[test]
@@ -436,10 +546,9 @@ mod tests {
 
     #[test]
     fn can_merge_vector_of_args() {
-        let args = to_string_map_from_key_val_pairs(vec!["tfinal=0.4", "rk_order=1", "quiet=true"]).unwrap();
-        let form = make_example_form()
-            .merge_string_map(&args)
+        let args = to_string_map_from_key_val_pairs(vec!["tfinal=0.4", "rk_order=1", "quiet=true"])
             .unwrap();
+        let form = make_example_form().merge_string_map(&args).unwrap();
         assert!(i64::from(form.get("num_zones")) == 5000);
         assert!(f64::from(form.get("tfinal")) == 0.4);
         assert!(i64::from(form.get("rk_order")) == 1);
@@ -450,13 +559,12 @@ mod tests {
     fn can_merge_value_map() {
         let args: HashMap<String, Value> = vec![
             ("num_zones".to_string(), Value::from(2000)),
-            ("quiet".to_string(), Value::from(true))]
+            ("quiet".to_string(), Value::from(true)),
+        ]
         .into_iter()
         .collect();
 
-        let form = make_example_form()
-            .merge_value_map(&args)
-            .unwrap();
+        let form = make_example_form().merge_value_map(&args).unwrap();
 
         assert!(i64::from(form.get("num_zones")) == 2000);
         assert!(f64::from(form.get("tfinal")) == 0.2);
@@ -468,7 +576,8 @@ mod tests {
     fn can_merge_freeze_value_map() {
         let args: HashMap<String, Value> = vec![
             ("num_zones".to_string(), Value::from(2000)),
-            ("quiet".to_string(), Value::from(true))]
+            ("quiet".to_string(), Value::from(true)),
+        ]
         .into_iter()
         .collect();
 
@@ -476,8 +585,8 @@ mod tests {
             .merge_value_map_freezing(&args, &vec!["num_zones", "rk_order"])
             .unwrap();
 
-        assert!(  form.is_frozen("num_zones"));
-        assert!(! form.is_frozen("rk_order"));
+        assert!(form.is_frozen("num_zones"));
+        assert!(!form.is_frozen("rk_order"));
     }
 
     #[test]
@@ -497,13 +606,14 @@ mod tests {
     fn merge_value_map_fails_with_kind_mismatch() {
         let args: HashMap<String, Value> = vec![
             ("num_zones".to_string(), Value::from(3.14)),
-            ("quiet".to_string(), Value::from(true))]
+            ("quiet".to_string(), Value::from(true)),
+        ]
         .into_iter()
         .collect();
         make_example_form().merge_value_map(&args).unwrap();
     }
 
-    #[cfg(feature="hdf5")]
+    #[cfg(feature = "hdf5")]
     #[cfg(test)]
     mod io_tests {
         use super::*;
@@ -517,7 +627,11 @@ mod tests {
 
         #[test]
         fn can_read_from_hdf5() {
-            io::write_to_hdf5(&make_example_form().value_map(), &hdf5::File::create("test2.h5").unwrap()).unwrap();
+            io::write_to_hdf5(
+                &make_example_form().value_map(),
+                &hdf5::File::create("test2.h5").unwrap(),
+            )
+            .unwrap();
             let file = hdf5::File::open("test2.h5").unwrap();
             let value_map = io::read_from_hdf5(&file).unwrap();
             let form = make_example_form().merge_value_map(&value_map).unwrap();
